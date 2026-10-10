@@ -423,7 +423,7 @@ SOFTWARE.
 
 Name: @modelcontextprotocol/sdk
 URL: https://modelcontextprotocol.io
-Version: 1.25.3
+Version: 1.32.1
 License: MIT
 
 MIT License
@@ -453,7 +453,7 @@ SOFTWARE.
 
 Name: zod-to-json-schema
 URL: https://github.com/StefanTerdell/zod-to-json-schema
-Version: 3.25.0
+Version: 3.25.2
 License: ISC
 
 ISC License
@@ -476,7 +476,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 Name: ajv
 URL: https://ajv.js.org
-Version: 8.17.1
+Version: 8.20.0
 License: MIT
 
 The MIT License (MIT)
@@ -567,14 +567,12 @@ SOFTWARE.
 
 Name: fast-uri
 URL: https://github.com/fastify/fast-uri
-Version: 3.1.0
+Version: 3.1.8
 License: BSD-3-Clause
 
 Copyright (c) 2011-2021, Gary Court until https://github.com/garycourt/uri-js/commit/a1acf730b4bba3f1097c9f52e7d9d3aba8cdcaae
-Copyright (c) 2021-present The Fastify team
+Copyright (c) 2021-present The Fastify team <https://github.com/fastify/fastify#team>
 All rights reserved.
-
-The Fastify team members are listed at https://github.com/fastify/fastify#team.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -936,8 +934,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 -------------------- DEPENDENCY DIVIDER --------------------
 
 Name: ip-address
-URL: git://github.com/beaugunderson/ip-address.git
-Version: 10.1.0
+URL: https://github.com/beaugunderson/ip-address.git
+Version: 10.7.3
 License: MIT
 
 Copyright (C) 2011 by Beau Gunderson
@@ -1056,7 +1054,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Name: basic-ftp
 URL: https://github.com/patrickjuchli/basic-ftp.git
-Version: 5.1.0
+Version: 6.2.3
 License: MIT
 
 Copyright (c) 2019 Patrick Juchli
@@ -1390,7 +1388,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Name: ws
 URL: https://github.com/websockets/ws
-Version: 8.19.0
+Version: 8.22.0
 License: MIT
 
 Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>

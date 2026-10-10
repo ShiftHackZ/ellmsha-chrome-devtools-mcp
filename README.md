@@ -1,3 +1,45 @@
+<!-- ELLMSHA FORK INTRO -->
+# Chrome DevTools MCP — eLLMsha integration fork
+
+**Browser inspection and automation engine.**
+
+| Provenance | Value |
+| --- | --- |
+| Original project | [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) |
+| Upstream baseline | `chrome-devtools-mcp-v0.16.0` |
+| Baseline revision | `4f7b06898327ab5be42c85bd98bd176f33d55d89` |
+| Harness patch label | 2 |
+
+## Why this fork exists
+
+Pinned engine behind the eLLMsha in-app browser integration, with dependency and packaging adjustments.
+
+```mermaid
+flowchart LR
+  Harness[eLLMsha harness] --> Component[Chrome DevTools MCP]
+  Component --> Work[Project work]
+```
+
+## Build and integration
+
+Use the parent `scripts/prepare-chrome-devtools-mcp.js`. eLLMsha tab scoping and lifecycle are implemented in the harness bridge.
+
+The parent repository's installer and integration checks are authoritative for the bundled product. A passing upstream test suite alone does not prove eLLMsha integration acceptance. This local documentation update does not publish a release or make unpublished revisions available remotely.
+
+## Contributing
+
+Keep changes focused, preserve upstream licenses and notices, and separate an upstream version update from a harness patch. Record both in the parent application's About provenance. Do not commit credentials, user profiles or commercial project contents. Validate behavior on the platform being changed.
+
+## License and credits
+
+See [LICENSE](LICENSE). Original authors and their license terms remain unchanged. **Moroz Inc.** maintains the eLLMsha integration.
+
+---
+
+## Upstream documentation
+
+<!-- END ELLMSHA FORK INTRO -->
+
 # Chrome DevTools MCP
 
 [![npm chrome-devtools-mcp package](https://img.shields.io/npm/v/chrome-devtools-mcp.svg)](https://npmjs.org/package/chrome-devtools-mcp)
