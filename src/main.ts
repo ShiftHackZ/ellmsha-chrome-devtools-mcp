@@ -24,6 +24,7 @@ import {
   StdioServerTransport,
   type CallToolResult,
   SetLevelRequestSchema,
+  zod,
 } from './third_party/index.js';
 import {ToolCategory} from './tools/categories.js';
 import type {ToolDefinition} from './tools/ToolDefinition.js';
@@ -179,7 +180,16 @@ function registerTool(tool: ToolDefinition): void {
     tool.name,
     {
       description: tool.description,
-      inputSchema: tool.schema,
+      inputSchema: {
+        ...tool.schema,
+        targetId: zod
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            'Exact CDP target ID. Selects this target atomically with the action; unavailable targets fail without falling back.',
+          ),
+      },
       annotations: tool.annotations,
     },
     async (params): Promise<CallToolResult> => {
@@ -190,11 +200,17 @@ function registerTool(tool: ToolDefinition): void {
         logger(`${tool.name} request: ${JSON.stringify(params, null, '  ')}`);
         const context = await getContext();
         logger(`${tool.name} context: resolved`);
+        const {targetId, ...toolParams} = params;
+        // The existing tool mutex covers target resolution, action and response.
+        // A second concurrent request cannot change the selected page mid-action.
+        const requestedPage = targetId
+          ? await context.selectTarget(targetId)
+          : undefined;
         await context.detectOpenDevToolsWindows();
         const response = new McpResponse();
         await tool.handler(
           {
-            params,
+            params: toolParams,
           },
           response,
           context,
@@ -210,10 +226,22 @@ function registerTool(tool: ToolDefinition): void {
         };
         success = true;
         if (args.experimentalStructuredContent) {
-          result.structuredContent = structuredContent as Record<
-            string,
-            unknown
-          >;
+          const observedPage =
+            requestedPage ??
+            context.getPages().find(page => context.isPageSelected(page));
+          result.structuredContent = {
+            ...structuredContent,
+            ...(observedPage
+              ? {
+                  target: {
+                    id: context.getTargetId(observedPage),
+                    pageId: context.getPageId(observedPage),
+                    url: observedPage.url(),
+                    closed: observedPage.isClosed(),
+                  },
+                }
+              : {}),
+          };
         }
         return result;
       } catch (err) {

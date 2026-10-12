@@ -391,6 +391,25 @@ export class McpContext implements Context {
     return page;
   }
 
+  /** Resolve the exact CDP target; never fall back to another page or match by URL. */
+  async selectTarget(targetId: string): Promise<Page> {
+    await this.createPagesSnapshot();
+    const page = this.#pages.find(
+      page => this.getTargetId(page) === targetId && !page.isClosed(),
+    );
+    if (!page)
+      throw new Error(
+        `Browser target ${targetId} is closed or unavailable. List tabs again.`,
+      );
+    if (page !== this.#selectedPage) this.selectPage(page);
+    return page;
+  }
+
+  getTargetId(page: Page): string | undefined {
+    // CDP target identity is stable across navigation, unlike URL or numeric page indexes.
+    return (page.target() as unknown as {_targetId?: string})._targetId;
+  }
+
   getPageById(pageId: number): Page {
     const page = this.#pages.find(p => this.#pageIdMap.get(p) === pageId);
     if (!page) {
@@ -413,6 +432,10 @@ export class McpContext implements Context {
 
   selectPage(newPage: Page): void {
     const oldPage = this.#selectedPage;
+    if (oldPage !== newPage) {
+      this.#textSnapshot = null;
+      this.#dialog = undefined;
+    }
     if (oldPage) {
       oldPage.off('dialog', this.#dialogHandler);
       void oldPage.emulateFocusedPage(false).catch(error => {

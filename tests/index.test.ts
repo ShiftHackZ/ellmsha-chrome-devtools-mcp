@@ -24,6 +24,7 @@ describe('e2e', () => {
       args: [
         'build/src/index.js',
         '--headless',
+        '--no-usage-statistics',
         '--isolated',
         '--executable-path',
         executablePath(),
@@ -83,6 +84,76 @@ describe('e2e', () => {
         ],
       });
     });
+  });
+
+  it('atomically targets concurrent actions and preserves legacy numeric selection', async () => {
+    await withClient(
+      async client => {
+        const first = await client.callTool({
+          name: 'list_pages',
+          arguments: {},
+        });
+        const firstTarget = (first.structuredContent as {target: {id: string}})
+          .target;
+        const created = await client.callTool({
+          name: 'new_page',
+          arguments: {url: 'about:blank'},
+        });
+        const secondTarget = (
+          created.structuredContent as {target: {id: string}}
+        ).target;
+        assert.notEqual(firstTarget.id, secondTarget.id);
+        const calls = await Promise.all(
+          [firstTarget.id, secondTarget.id].map((targetId, index) =>
+            client.callTool({
+              name: 'evaluate_script',
+              arguments: {
+                targetId,
+                function: `() => { document.title = "owned-${index}"; return document.title; }`,
+              },
+            }),
+          ),
+        );
+        assert.deepEqual(
+          calls.map(
+            result =>
+              (result.structuredContent as {target: {id: string}}).target.id,
+          ),
+          [firstTarget.id, secondTarget.id],
+        );
+        for (const [index, target] of [firstTarget, secondTarget].entries()) {
+          const readback = await client.callTool({
+            name: 'evaluate_script',
+            arguments: {targetId: target.id, function: '() => document.title'},
+          });
+          assert.match(
+            JSON.stringify(readback.content),
+            new RegExp(`owned-${index}`),
+          );
+        }
+        await client.callTool({name: 'select_page', arguments: {pageId: 1}});
+        const legacy = await client.callTool({
+          name: 'evaluate_script',
+          arguments: {function: '() => document.title'},
+        });
+        assert.match(JSON.stringify(legacy.content), /owned-0/);
+        await client.callTool({name: 'close_page', arguments: {pageId: 2}});
+        const closed = await client.callTool({
+          name: 'evaluate_script',
+          arguments: {
+            targetId: secondTarget.id,
+            function: '() => { document.title = "MUST-NOT-RUN"; }',
+          },
+        });
+        assert.equal(closed.isError, true);
+        const unchanged = await client.callTool({
+          name: 'evaluate_script',
+          arguments: {function: '() => document.title'},
+        });
+        assert.match(JSON.stringify(unchanged.content), /owned-0/);
+      },
+      ['--experimental-structured-content'],
+    );
   });
 
   it('has all tools', async () => {

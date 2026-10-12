@@ -33,6 +33,42 @@ describe('McpContext', () => {
     });
   });
 
+  it('selects exact targets with identical URLs, clears foreign element IDs and rejects closed targets', async () => {
+    await withMcpContext(async (_response, context) => {
+      const first = context.getSelectedPage();
+      await first.setContent('<button>Owned first</button>');
+      await context.createTextSnapshot();
+      const second = await context.newPage();
+      await second.setContent('<button>Owned second</button>');
+      assert.equal(first.url(), second.url());
+      const firstId = context.getTargetId(first)!;
+      const secondId = context.getTargetId(second)!;
+      assert.notEqual(firstId, secondId);
+      await context.selectTarget(firstId);
+      assert.equal(context.getSelectedPage(), first);
+      await context.createTextSnapshot();
+      assert.ok(context.getTextSnapshot());
+      await context.selectTarget(firstId);
+      assert.ok(context.getTextSnapshot(), 'same target keeps its observation');
+      await context.selectTarget(secondId);
+      assert.equal(
+        context.getTextSnapshot(),
+        null,
+        'a different target cannot use the previous snapshot IDs',
+      );
+      await first.close();
+      await assert.rejects(
+        context.selectTarget(firstId),
+        /closed or unavailable/,
+      );
+      assert.equal(
+        context.getSelectedPage(),
+        second,
+        'rejected target never redirects an action',
+      );
+    });
+  });
+
   it('can store and retrieve the latest performance trace', async () => {
     await withMcpContext(async (_response, context) => {
       const fakeTrace1 = {} as unknown as TraceResult;
