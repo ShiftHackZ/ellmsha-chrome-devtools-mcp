@@ -156,6 +156,154 @@ describe('e2e', () => {
     );
   });
 
+  for (const structured of [false, true]) {
+    it(`reports completed self-closing actions with structured content ${structured}`, async () => {
+      await withClient(
+        async client => {
+          const initial = await client.callTool({
+            name: 'list_pages',
+            arguments: {},
+          });
+          assert.notEqual(
+            initial.isError,
+            true,
+            JSON.stringify(initial.content),
+          );
+          await client.callTool({
+            name: 'evaluate_script',
+            arguments: {
+              function: '() => { document.title = "owned-survivor"; }',
+            },
+          });
+
+          const openChild = async () => {
+            await client.callTool({
+              name: 'select_page',
+              arguments: {pageId: 1},
+            });
+            const opened = await client.callTool({
+              name: 'evaluate_script',
+              arguments: {
+                function: '() => { window.open("about:blank"); }',
+              },
+            });
+            assert.notEqual(
+              opened.isError,
+              true,
+              JSON.stringify(opened.content),
+            );
+            const listed = await client.callTool({
+              name: 'list_pages',
+              arguments: {},
+            });
+            const pages = (listed.content as Array<{text: string}>)[0].text;
+            const ids = [...pages.matchAll(/^(\d+):/gm)].map(match =>
+              Number(match[1]),
+            );
+            assert.equal(ids.length, 2);
+            const selected = await client.callTool({
+              name: 'select_page',
+              arguments: {pageId: Math.max(...ids)},
+            });
+            assert.notEqual(selected.isError, true);
+            return (
+              selected.structuredContent as {target?: {id: string}} | undefined
+            )?.target;
+          };
+
+          for (const includeSnapshot of [false, true]) {
+            const target = await openChild();
+            const args = target ? {targetId: target.id} : {};
+            await client.callTool({
+              name: 'evaluate_script',
+              arguments: {
+                ...args,
+                function:
+                  '() => { document.body.innerHTML = `<button onclick="window.close()">Close child</button>`; }',
+              },
+            });
+            const snapshot = await client.callTool({
+              name: 'take_snapshot',
+              arguments: args,
+            });
+            const text = (snapshot.content as Array<{text: string}>)[0].text;
+            const uid = text.match(/uid=(\S+) button "Close child"/)?.[1];
+            assert.ok(uid);
+            const closed = await client.callTool({
+              name: 'click',
+              arguments: {...args, uid, includeSnapshot},
+            });
+            assert.notEqual(
+              closed.isError,
+              true,
+              JSON.stringify(closed.content),
+            );
+            assert.match(
+              JSON.stringify(closed.content),
+              /Successfully clicked/,
+            );
+            assert.match(JSON.stringify(closed.content), /page closed/);
+            assert.doesNotMatch(
+              JSON.stringify(closed.content),
+              /Latest page snapshot/,
+            );
+            if (structured) {
+              assert.equal(
+                (closed.structuredContent as {target: {id: string}}).target.id,
+                target?.id,
+              );
+              assert.equal(
+                (closed.structuredContent as {target: {closed: boolean}}).target
+                  .closed,
+                true,
+              );
+            } else {
+              assert.equal(closed.structuredContent, undefined);
+            }
+            const staleImplicit = await client.callTool({
+              name: 'evaluate_script',
+              arguments: {
+                function: '() => { document.title = "MUST-NOT-RUN"; }',
+              },
+            });
+            assert.equal(staleImplicit.isError, true);
+            if (target) {
+              const staleExplicit = await client.callTool({
+                name: 'evaluate_script',
+                arguments: {
+                  ...args,
+                  function: '() => { document.title = "MUST-NOT-RUN"; }',
+                },
+              });
+              assert.equal(staleExplicit.isError, true);
+            }
+            await client.callTool({
+              name: 'select_page',
+              arguments: {pageId: 1},
+            });
+            const survivor = await client.callTool({
+              name: 'evaluate_script',
+              arguments: {function: '() => document.title'},
+            });
+            assert.match(JSON.stringify(survivor.content), /owned-survivor/);
+          }
+
+          const target = await openChild();
+          const failed = await client.callTool({
+            name: 'evaluate_script',
+            arguments: {
+              ...(target ? {targetId: target.id} : {}),
+              function:
+                '() => { window.close(); throw new Error("owned-handler-failure"); }',
+            },
+          });
+          assert.equal(failed.isError, true);
+        },
+        structured ? ['--experimental-structured-content'] : [],
+      );
+    });
+  }
+
   it('has all tools', async () => {
     await withClient(async client => {
       const {tools} = await client.listTools();

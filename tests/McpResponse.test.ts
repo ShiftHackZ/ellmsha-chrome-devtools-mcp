@@ -5,11 +5,14 @@
  */
 
 import assert from 'node:assert';
-import {readFile, rm} from 'node:fs/promises';
+import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, it} from 'node:test';
 
+import {getConsoleMessage, listConsoleMessages} from '../src/tools/console.js';
+import {getNetworkRequest, listNetworkRequests} from '../src/tools/network.js';
+import {takeSnapshot} from '../src/tools/snapshot.js';
 import type {InsightName} from '../src/trace-processing/parse.js';
 import {
   parseRawTraceBuffer,
@@ -31,6 +34,107 @@ import {
 } from './utils.js';
 
 describe('McpResponse', () => {
+  it('retains completed output when the exact page closes before enrichment', async () => {
+    await withMcpContext(async (response, context) => {
+      const page = context.getSelectedPage();
+      response.appendResponseLine('Completed before close');
+      response.attachImage({data: 'owned-image', mimeType: 'image/png'});
+      response.includeSnapshot();
+      await page.close();
+
+      const result = await response.handle('test', context, page);
+      assert.match(getTextContent(result.content[0]), /Completed before close/);
+      assert.match(getTextContent(result.content[0]), /page closed/);
+      assert.doesNotMatch(
+        getTextContent(result.content[0]),
+        /Latest page snapshot/,
+      );
+      assert.deepEqual(result.content[1], {
+        type: 'image',
+        data: 'owned-image',
+        mimeType: 'image/png',
+      });
+      assert.throws(
+        () => context.getSelectedPage(),
+        /selected page has been closed/,
+      );
+    });
+  });
+
+  for (const requiredWork of [
+    'snapshot',
+    'snapshot-file',
+    'network-request',
+    'network-list',
+    'console-message',
+    'console-list',
+  ]) {
+    it(`does not report unfinished ${requiredWork} as successful after close`, async () => {
+      await withMcpContext(async (response, context) => {
+        const page = context.getSelectedPage();
+        const directory = await mkdtemp(join(tmpdir(), 'mcp-closed-response-'));
+        const filePath = join(directory, 'snapshot.txt');
+        try {
+          switch (requiredWork) {
+            case 'snapshot':
+            case 'snapshot-file':
+              await takeSnapshot.handler(
+                {
+                  params: {
+                    filePath:
+                      requiredWork === 'snapshot-file' ? filePath : undefined,
+                  },
+                },
+                response,
+                context,
+              );
+              break;
+            case 'network-request':
+              await getNetworkRequest.handler(
+                {params: {reqid: 1}},
+                response,
+                context,
+              );
+              break;
+            case 'network-list':
+              await listNetworkRequests.handler(
+                {params: {}},
+                response,
+                context,
+              );
+              break;
+            case 'console-message':
+              await getConsoleMessage.handler(
+                {params: {msgid: 1}},
+                response,
+                context,
+              );
+              break;
+            case 'console-list':
+              await listConsoleMessages.handler(
+                {params: {}},
+                response,
+                context,
+              );
+              break;
+          }
+          // A preliminary message must not hide still-required file/data work.
+          if (requiredWork !== 'snapshot') {
+            response.appendResponseLine('Prepared request');
+          }
+          await page.close();
+          await assert.rejects(
+            response.handle('test', context, page),
+            /selected page has been closed/,
+          );
+          await assert.rejects(readFile(filePath), {code: 'ENOENT'});
+        } finally {
+          await rm(directory, {recursive: true, force: true});
+        }
+      });
+    });
+  }
+
   it('list pages', async t => {
     await withMcpContext(async (response, context) => {
       response.setIncludePages(true);

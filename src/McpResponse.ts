@@ -14,6 +14,7 @@ import {DevTools} from './third_party/index.js';
 import type {
   ConsoleMessage,
   ImageContent,
+  Page,
   ResourceType,
   TextContent,
 } from './third_party/index.js';
@@ -225,10 +226,39 @@ export class McpResponse implements Response {
   async handle(
     toolName: string,
     context: McpContext,
+    completedActionPage?: Page,
   ): Promise<{
     content: Array<TextContent | ImageContent>;
     structuredContent: object;
   }> {
+    // Preserve an already produced result, but never replace required deferred
+    // work (snapshot files, network/console data, etc.) with a success notice.
+    // Only the optional post-action snapshot may be omitted for a closed target.
+    if (
+      completedActionPage?.isClosed() &&
+      (this.#textResponseLines.length > 0 || this.#images.length > 0) &&
+      !this.#includePages &&
+      !this.#snapshotParams?.filePath &&
+      this.#attachedNetworkRequestId === undefined &&
+      !this.#networkRequestsOptions?.include &&
+      this.#attachedConsoleMessageId === undefined &&
+      !this.#consoleDataOptions?.include &&
+      !this.#attachedTraceSummary &&
+      !this.#attachedTraceInsight &&
+      !this.#listExtensions
+    ) {
+      const message = [
+        ...this.#textResponseLines,
+        'The target page closed after the action completed. No live page snapshot is available.',
+      ].join('\n');
+      return {
+        content: [
+          {type: 'text', text: `# ${toolName} response\n${message}`},
+          ...this.#images.map(image => ({type: 'image' as const, ...image})),
+        ],
+        structuredContent: {message},
+      };
+    }
     if (this.#includePages) {
       await context.createPagesSnapshot();
     }

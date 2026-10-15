@@ -206,6 +206,11 @@ function registerTool(tool: ToolDefinition): void {
         const requestedPage = targetId
           ? await context.selectTarget(targetId)
           : undefined;
+        const selectedPage =
+          requestedPage ??
+          context.getPages().find(page => context.isPageSelected(page));
+        const actionPage =
+          selectedPage && !selectedPage.isClosed() ? selectedPage : undefined;
         await context.detectOpenDevToolsWindows();
         const response = new McpResponse();
         await tool.handler(
@@ -218,6 +223,7 @@ function registerTool(tool: ToolDefinition): void {
         const {content, structuredContent} = await response.handle(
           tool.name,
           context,
+          actionPage,
         );
         const result: CallToolResult & {
           structuredContent?: Record<string, unknown>;
